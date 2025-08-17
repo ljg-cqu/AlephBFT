@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AlephBFT Consensus Mechanism - Interactive Visualization</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #34495e;
+            margin-top: 40px;
+            border-left: 4px solid #3498db;
+            padding-left: 15px;
+        }
+        h3 {
+            color: #7f8c8d;
+            margin-top: 30px;
+        }
+        .diagram-container {
+            margin: 20px 0;
+            padding: 20px;
+            background-color: #fafafa;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+        }
+        .description {
+            background-color: #ecf0f1;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+            border-left: 4px solid #3498db;
+        }
+        .properties {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .property-card {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+        }
+        .property-card h4 {
+            color: #495057;
+            margin-top: 0;
+        }
+        .highlight {
+            background-color: #fff3cd;
+            padding: 10px;
+            border-radius: 5px;
+            border-left: 4px solid #ffc107;
+            margin: 10px 0;
+        }
+        .toc {
+            background-color: #e8f4f8;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+        .toc ul {
+            list-style-type: none;
+            padding-left: 0;
+        }
+        .toc li {
+            margin: 5px 0;
+        }
+        .toc a {
+            text-decoration: none;
+            color: #2980b9;
+        }
+        .toc a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>AlephBFT Consensus Mechanism</h1>
+        <p style="text-align: center; font-size: 1.1em; color: #7f8c8d;">
+            Interactive Visualization of the Asynchronous Byzantine Fault Tolerant Consensus Protocol
+        </p>
+
+        <div class="toc">
+            <h3>Table of Contents</h3>
+            <ul>
+                <li><a href="#overview">Overview</a></li>
+                <li><a href="#architecture">High-Level Architecture</a></li>
+                <li><a href="#unit-structure">Unit Structure and DAG Construction</a></li>
+                <li><a href="#unit-creation">Unit Creation Rules</a></li>
+                <li><a href="#consensus-flow">Consensus Algorithm Flow</a></li>
+                <li><a href="#ordering">Ordering Algorithm</a></li>
+                <li><a href="#voting">Virtual Voting Mechanism</a></li>
+                <li><a href="#fork-detection">Fork Detection and Alert System</a></li>
+                <li><a href="#complete-flow">Complete Protocol Flow</a></li>
+                <li><a href="#properties">Key Properties</a></li>
+            </ul>
+        </div>
+
+        <div id="overview" class="description">
+            <h2>Overview</h2>
+            <p><strong>AlephBFT</strong> is an asynchronous Byzantine Fault Tolerant consensus protocol that orders arbitrary messages through a DAG (Directed Acyclic Graph) structure. It allows N nodes to agree on an ordering of data items, tolerating up to <strong>f = ⌊(N-1)/3⌋</strong> malicious nodes. The protocol is asynchronous, meaning it doesn't rely on timing assumptions for safety.</p>
+        </div>
+
+        <div id="architecture">
+            <h2>1. High-Level Architecture</h2>
+            <div class="diagram-container">
+                <div class="mermaid">
+graph TB
+    subgraph "Node Architecture"
+        DP[Data Provider] --> Creator[Unit Creator]
+        Creator --> DAG[DAG Structure]
+        DAG --> Ordering[Ordering Algorithm]
+        Ordering --> FH[Finalization Handler]
+        
+        Network[Network Layer] <--> DAG
+        Alerts[Alert System] <--> DAG
+        Backup[Backup System] <--> DAG
+    end
+    
+    subgraph "External Components"
+        Input[Input Stream] --> DP
+        FH --> Output[Output Stream]
+        Storage[Persistent Storage] <--> Backup
+    end
+                </div>
+            </div>
+            <div class="description">
+                <p>The architecture shows how data flows from input streams through the consensus mechanism to produce an ordered output stream. Each node maintains a DAG structure and communicates with other nodes through the network layer.</p>
+            </div>
+        </div>
+
+        <div id="unit-structure">
+            <h2>2. Unit Structure and DAG Construction</h2>
+            
+            <h3>Unit Components</h3>
+            <div class="diagram-container">
+                <div class="mermaid">
+graph LR
+    subgraph "Unit Structure"
+        U[Unit] --> Creator[Creator ID]
+        U --> Round[Round Number]
+        U --> Data[Data Item]
+        U --> ParentMap[Parent Map]
+        U --> ControlHash[Control Hash]
+        U --> Signature[Digital Signature]
+    end
+    
+    subgraph "Parent Relationships"
+        U1[Unit R1] --> U0A[Unit R0-A]
+        U1 --> U0B[Unit R0-B]
+        U1 --> U0C[Unit R0-C]
+        U2[Unit R2] --> U1
+        U2 --> U1B[Unit R1-B]
+        U2 --> U1C[Unit R1-C]
+    end
+                </div>
+            </div>
+
+            <h3>DAG Growth Pattern</h3>
+            <div class="diagram-container">
+                <div class="mermaid">
+graph TB
+    subgraph "Round 0 (Genesis)"
+        U0A[Node A Unit 0]
+        U0B[Node B Unit 0]
+        U0C[Node C Unit 0]
+        U0D[Node D Unit 0]
+    end
+    
+    subgraph "Round 1"
+        U1A[Node A Unit 1]
+        U1B[Node B Unit 1]
+        U1C[Node C Unit 1]
+        U1D[Node D Unit 1]
+    end
+    
+    subgraph "Round 2"
+        U2A[Node A Unit 2]
+        U2B[Node B Unit 2]
+        U2C[Node C Unit 2]
+        U2D[Node D Unit 2]
+    end
+    
+    %% Parent relationships
+    U1A --> U0A
+    U1A --> U0B
+    U1A --> U0C
+    U1B --> U0A
+    U1B --> U0B
+    U1B --> U0D
+    U1C --> U0B
+    U1C --> U0C
+    U1C --> U0D
+    U1D --> U0A
+    U1D --> U0C
+    U1D --> U0D
+    
+    U2A --> U1A
+    U2A --> U1B
+    U2A --> U1C
+    U2B --> U1A
+    U2B --> U1B
+    U2B --> U1D
+    U2C --> U1B
+    U2C --> U1C
+    U2C --> U1D
+    U2D --> U1A
+    U2D --> U1C
+    U2D --> U1D
+                </div>
+            </div>
+            <div class="description">
+                <p>The DAG grows in rounds, with each unit referencing at least N-f units from the previous round. This creates a robust structure where information propagates reliably through the network.</p>
+            </div>
+        </div>
+
+        <div id="unit-creation">
+            <h2>3. Unit Creation Rules</h2>
+            <div class="diagram-container">
+                <div class="mermaid">
+flowchart TD
+    Start([Start Unit Creation]) --> CheckRound{Round = 0?}
+    CheckRound -->|Yes| CreateGenesis[Create Genesis Unit]
+    CheckRound -->|No| CheckPrevious{Previous unit exists?}
+    
+    CheckPrevious -->|No| Wait1[Wait for previous unit]
+    CheckPrevious -->|Yes| CheckThreshold{≥ N-f units in previous round?}
+    
+    CheckThreshold -->|No| Wait2[Wait for more units]
+    CheckThreshold -->|Yes| SelectParents[Select ≥ N-f parents from previous round]
+    
+    SelectParents --> GetData[Poll data from input stream]
+    GetData --> ComputeHash[Compute control hash]
+    ComputeHash --> Sign[Sign unit]
+    Sign --> Broadcast[Broadcast to all nodes]
+    Broadcast --> Delay[Sleep CREATE_DELAY]
+    Delay --> NextRound[Increment round]
+    NextRound --> CheckRound
+    
+    CreateGenesis --> Broadcast
+    Wait1 --> CheckPrevious
+    Wait2 --> CheckThreshold
+                </div>
+            </div>
+            <div class="highlight">
+                <strong>Key Rule:</strong> A node can only create a unit for round r if it has at least N-f units from round r-1, ensuring sufficient connectivity in the DAG.
+            </div>
+        </div>
+
+        <div id="consensus-flow">
+            <h2>4. Consensus Algorithm Flow</h2>
+            <div class="diagram-container">
+                <div class="mermaid">
+sequenceDiagram
+    participant N1 as Node 1
+    participant N2 as Node 2
+    participant N3 as Node 3
+    participant N4 as Node 4
+    
+    Note over N1,N4: Round 0 - Genesis Units
+    N1->>N1: Create Unit(0,1)
+    N2->>N2: Create Unit(0,2)
+    N3->>N3: Create Unit(0,3)
+    N4->>N4: Create Unit(0,4)
+    
+    N1->>N2: Broadcast Unit(0,1)
+    N1->>N3: Broadcast Unit(0,1)
+    N1->>N4: Broadcast Unit(0,1)
+    
+    Note over N1,N4: Similar broadcasts for all nodes...
+    
+    Note over N1,N4: Round 1 - After receiving ≥ N-f units
+    N1->>N1: Create Unit(1,1) with parents
+    N2->>N2: Create Unit(1,2) with parents
+    N3->>N3: Create Unit(1,3) with parents
+    N4->>N4: Create Unit(1,4) with parents
+    
+    Note over N1,N4: Continue DAG construction...
+    
+    Note over N1,N4: Ordering Phase
+    N1->>N1: Run OrderData algorithm
+    N2->>N2: Run OrderData algorithm
+    N3->>N3: Run OrderData algorithm
+    N4->>N4: Run OrderData algorithm
+                </div>
+            </div>
+        </div>
+
+        <div id="ordering">
+            <h2>5. Ordering Algorithm (Head Selection)</h2>
+            <div class="diagram-container">
+                <div class="mermaid">
+flowchart TD
+    Start([OrderData Algorithm]) --> InitRound[r = 0]
+    InitRound --> FindHead{Find Head r}
+    
+    FindHead -->|None| End([Return ordered sequence])
+    FindHead -->|Some U| GetBelow[Get all units below U]
+    
+    GetBelow --> RemovePrevious[Remove units from previous batches]
+    RemovePrevious --> SortBatch[Sort remaining units canonically]
+    SortBatch --> AddToBatch[Add to batch r]
+    AddToBatch --> ExtractData[Extract data from units]
+    ExtractData --> AppendOrder[Append to order sequence]
+    AppendOrder --> IncrementRound[r = r + 1]
+    IncrementRound --> FindHead
+                </div>
+            </div>
+
+            <h3>Head Selection Process</h3>
+            <div class="diagram-container">
+                <div class="mermaid">
+flowchart TD
+    StartHead([Head Selection for Round r]) --> CheckHeight{DAG height >= r+3?}
+    CheckHeight -->|No| ReturnNone[Return None]
+    CheckHeight -->|Yes| GetUnits[Get units in round r]
+    
+    GetUnits --> SortUnits[Sort units canonically]
+    SortUnits --> TestFirst[Test first unit]
+    
+    TestFirst --> Decide{Decide unit?}
+    Decide -->|None| ReturnNone
+    Decide -->|Some true| ReturnUnit[Return this unit as head]
+    Decide -->|Some false| NextUnit[Try next unit]
+    
+    NextUnit --> MoreUnits{More units?}
+    MoreUnits -->|Yes| TestFirst
+    MoreUnits -->|No| ReturnNone
+    
+    ReturnUnit --> HeadFound([Head found])
+                </div>
+            </div>
+            <div class="description">
+                <p>The ordering algorithm selects a "head" unit from each round using virtual voting. All units below the head that haven't been ordered yet form a new batch in the final ordering.</p>
+            </div>
+        </div>
+
+        <div id="voting">
+            <h2>6. Virtual Voting Mechanism</h2>
+            <div class="diagram-container">
+                <div class="mermaid">
+graph TB
+    subgraph "Virtual Voting for Unit U in Round r"
+        U[Unit U - Round r]
+        
+        subgraph "Round r+1 Voters"
+            V1[Unit V1]
+            V2[Unit V2]
+            V3[Unit V3]
+            V4[Unit V4]
+        end
+        
+        subgraph "Round r+2 Voters"
+            W1[Unit W1]
+            W2[Unit W2]
+            W3[Unit W3]
+            W4[Unit W4]
+        end
+        
+        subgraph "Round r+3 Voters (Decision Round)"
+            X1[Unit X1]
+            X2[Unit X2]
+            X3[Unit X3]
+            X4[Unit X4]
+        end
+    end
+    
+    U -.-> V1
+    U -.-> V2
+    U -.-> V3
+    U -.-> V4
+    
+    V1 --> W1
+    V2 --> W2
+    V3 --> W3
+    V4 --> W4
+    
+    W1 --> X1
+    W2 --> X2
+    W3 --> X3
+    W4 --> X4
+    
+    X1 --> Decision[Final Decision]
+    X2 --> Decision
+    X3 --> Decision
+    X4 --> Decision
+                </div>
+            </div>
+
+            <h3>Voting Rules</h3>
+            <div class="diagram-container">
+                <div class="mermaid">
+flowchart TD
+    StartVote([Vote U V]) --> CheckDiff{round_diff = V.round - U.round}
+    
+    CheckDiff -->|= 1| DirectParent{U in parents V?}
+    DirectParent -->|Yes| ReturnTrue[Return true]
+    DirectParent -->|No| ReturnFalse[Return false]
+    
+    CheckDiff -->|> 1| GetParentVotes[Get votes from parents V]
+    GetParentVotes --> AllSame{All votes same?}
+    
+    AllSame -->|Yes| ReturnVote[Return that vote]
+    AllSame -->|No| CommonVote[Return CommonVote round_diff]
+    
+    CommonVote --> CheckRoundDiff{round_diff <= 4?}
+    CheckRoundDiff -->|Yes = 3| ReturnFalse[Return false]
+    CheckRoundDiff -->|Yes != 3| ReturnTrue[Return true]
+    CheckRoundDiff -->|No| ReturnParity[Return round_diff mod 2 == 1]
+                </div>
+            </div>
+            <div class="highlight">
+                <strong>Virtual Voting:</strong> Units in later rounds "vote" on whether earlier units should be selected as heads. The voting is deterministic and based on the DAG structure, requiring no explicit communication.
+            </div>
+        </div>
+
+        <div id="fork-detection">
+            <h2>7. Fork Detection and Alert System</h2>
+            <div class="diagram-container">
+                <div class="mermaid">
+sequenceDiagram
+    participant N1 as Honest Node 1
+    participant N2 as Honest Node 2
+    participant N3 as Malicious Node 3
+    participant N4 as Honest Node 4
+    
+    Note over N1,N4: Normal Operation
+    N3->>N1: Unit A (Round 1)
+    N3->>N2: Unit B (Round 1) - FORK!
+    
+    N1->>N2: Forward Unit A
+    N2->>N1: Forward Unit B
+    
+    Note over N1,N4: Fork Detection
+    N1->>N1: Detect fork (A ≠ B, same round/creator)
+    N2->>N2: Detect fork (A ≠ B, same round/creator)
+    
+    Note over N1,N4: Alert Broadcasting
+    N1->>N2: ForkAlert(N3, proof=(A,B), units=[...])
+    N1->>N4: ForkAlert(N3, proof=(A,B), units=[...])
+    
+    N2->>N1: ForkAlert(N3, proof=(A,B), units=[...])
+    N2->>N4: ForkAlert(N3, proof=(A,B), units=[...])
+    
+    Note over N1,N4: Reliable Broadcast ensures all honest nodes get alerts
+                </div>
+            </div>
+
+            <h3>Alert Processing</h3>
+            <div class="diagram-container">
+                <div class="mermaid">
+flowchart TD
+    ReceiveUnit[Receive Unit] --> CheckFork{Fork detected?}
+    CheckFork -->|No| AddToDAG[Add to DAG normally]
+    CheckFork -->|Yes| CreateAlert[Create ForkAlert]
+    
+    CreateAlert --> ReliableBroadcast[Reliable Broadcast Alert]
+    ReliableBroadcast --> MarkForker[Mark node as forker]
+    MarkForker --> FilterUnits[Only accept committed units from forker]
+    
+    ReceiveAlert[Receive ForkAlert] --> ValidateProof{Valid fork proof?}
+    ValidateProof -->|No| Discard[Discard alert]
+    ValidateProof -->|Yes| AcceptCommitted[Accept committed units]
+    AcceptCommitted --> UpdateForkerList[Update forker list]
+                </div>
+            </div>
+            <div class="description">
+                <p>The alert system protects against fork bomb attacks by limiting the number of units accepted from forking nodes and using reliable broadcast to ensure all honest nodes are aware of malicious behavior.</p>
+            </div>
+        </div>
+
+        <div id="complete-flow">
+            <h2>8. Complete Protocol Flow</h2>
+            <div class="diagram-container">
+                <div class="mermaid">
+graph TB
+    subgraph "Input Layer"
+        DataStream[Data Stream] --> DataProvider[Data Provider]
+    end
+    
+    subgraph "Consensus Core"
+        DataProvider --> Creator[Unit Creator]
+        Creator --> |New Units| DAG[DAG Manager]
+        
+        Network[Network Hub] <--> |Units/Alerts| DAG
+        DAG --> |Fork Detection| AlertSystem[Alert System]
+        AlertSystem --> |Reliable Broadcast| Network
+        
+        DAG --> |Ordered Units| Consensus[Consensus Handler]
+        Consensus --> |Finalized Data| FinalizationHandler[Finalization Handler]
+    end
+    
+    subgraph "Persistence Layer"
+        BackupSaver[Backup Saver] <--> |Save/Load| Storage[Persistent Storage]
+        DAG <--> BackupSaver
+    end
+    
+    subgraph "Output Layer"
+        FinalizationHandler --> OutputStream[Ordered Output Stream]
+    end
+    
+    subgraph "Validation"
+        Validator[Unit Validator] --> DAG
+        Validator --> |Signature Check| Keychain[Multi-Keychain]
+    end
+                </div>
+            </div>
+        </div>
+
+        <div id="properties">
+            <h2>Key Properties</h2>
+            <div class="properties">
+                <div class="property-card">
+                    <h4>Safety Properties</h4>
+                    <ul>
+                        <li><strong>Consistency:</strong> All honest nodes produce the same ordering (one is prefix of another)</li>
+                        <li><strong>Validity:</strong> Only data from honest nodes appears in output</li>
+                        <li><strong>Integrity:</strong> No data corruption or unauthorized modifications</li>
+                    </ul>
+                </div>
+                
+                <div class="property-card">
+                    <h4>Liveness Properties</h4>
+                    <ul>
+                        <li><strong>Termination:</strong> Protocol continues to make progress</li>
+                        <li><strong>Fairness:</strong> All honest nodes' data eventually gets ordered</li>
+                    </ul>
+                </div>
+                
+                <div class="property-card">
+                    <h4>Byzantine Fault Tolerance</h4>
+                    <ul>
+                        <li>Tolerates up to f = ⌊(N-1)/3⌋ malicious nodes</li>
+                        <li>Handles various attack scenarios including fork bombs</li>
+                        <li>Asynchronous safety (no timing assumptions needed for correctness)</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="highlight">
+                <h4>Implementation Highlights</h4>
+                <ol>
+                    <li><strong>Asynchronous Design:</strong> No reliance on synchronized clocks or timing assumptions</li>
+                    <li><strong>DAG-based Structure:</strong> Efficient parallel processing of units</li>
+                    <li><strong>Virtual Voting:</strong> Deterministic decision making without explicit voting rounds</li>
+                    <li><strong>Fork Resilience:</strong> Robust handling of malicious behavior through alert system</li>
+                    <li><strong>Crash Recovery:</strong> Persistent storage enables recovery from failures</li>
+                    <li><strong>Modular Architecture:</strong> Clean separation of concerns with well-defined interfaces</li>
+                </ol>
+            </div>
+        </div>
+
+        <div class="description" style="margin-top: 40px; text-align: center;">
+            <p><strong>This consensus mechanism provides a robust foundation for blockchain and distributed systems requiring strong consistency guarantees in adversarial environments.</strong></p>
+        </div>
+    </div>
+
+    <script>
+        mermaid.initialize({ 
+            startOnLoad: true,
+            theme: 'default',
+            themeVariables: {
+                primaryColor: '#3498db',
+                primaryTextColor: '#2c3e50',
+                primaryBorderColor: '#2980b9',
+                lineColor: '#34495e',
+                secondaryColor: '#ecf0f1',
+                tertiaryColor: '#f8f9fa'
+            }
+        });
+    </script>
+</body>
+</html>
